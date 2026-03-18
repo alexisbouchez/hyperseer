@@ -1,0 +1,7 @@
+# binaries
+seer
+serve
+install
+
+# environment
+.env
