@@ -8,7 +8,7 @@ Hyperseer is a self-hosted OpenTelemetry backend that stores logs and traces in 
 
 ## Self-hosting
 
-Run the interactive install wizard — it sets up ClickHouse, the Hyperseer server, and optionally Caddy for HTTPS:
+Run the interactive install wizard. It sets up ClickHouse, the Hyperseer server, and optionally Caddy for HTTPS:
 
 ```bash
 go run github.com/alexisbouchez/hyperseer/cmd/install@latest
@@ -29,7 +29,7 @@ go run github.com/alexisbouchez/hyperseer/cmd/install@latest \
 |---|---|---|
 | `--domain` | Domain where Hyperseer will be accessible | prompted |
 | `--password` | ClickHouse password | auto-generated |
-| `--retention` | Data retention in days: `7`, `30`, `90`, `365` | `30` |
+| `--retention` | Data retention in days (`7`, `30`, `90`, `365`) | `30` |
 | `--caddy` | Proxy mode: `new`, `existing`, or `skip` | prompted |
 | `--yes` | Skip confirmation prompt | `false` |
 
