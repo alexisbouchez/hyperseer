@@ -32,13 +32,27 @@ func statusColor(s string) string {
 
 func timeRange(cmd *cli.Command) (from, to time.Time) {
 	to = time.Now()
+	from = to.Add(-time.Hour)
+	if t := cmd.String("from"); t != "" {
+		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+			from = parsed
+		}
+	}
 	if t := cmd.String("to"); t != "" {
 		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
 			to = parsed
 		}
 	}
-	from = to.Add(-cmd.Duration("since"))
+	if d := cmd.Duration("last"); d != 0 {
+		from = to.Add(-d)
+	}
 	return
+}
+
+var timeFlags = []cli.Flag{
+	&cli.StringFlag{Name: "from", Usage: "Start time (RFC3339), defaults to 1h ago"},
+	&cli.StringFlag{Name: "to", Usage: "End time (RFC3339), defaults to now"},
+	&cli.DurationFlag{Name: "last", Usage: "Shorthand: last N duration ending at --to (e.g. --last 30m)"},
 }
 
 func main() {
@@ -49,13 +63,11 @@ func main() {
 			{
 				Name:  "logs",
 				Usage: "Query logs",
-				Flags: []cli.Flag{
+				Flags: append([]cli.Flag{
 					&cli.StringFlag{Name: "service", Aliases: []string{"s"}, Usage: "Filter by service name"},
 					&cli.StringFlag{Name: "severity", Usage: "Filter by severity"},
-					&cli.DurationFlag{Name: "since", Value: time.Hour, Usage: "How far back to look"},
-					&cli.StringFlag{Name: "to", Usage: "End time (RFC3339), defaults to now"},
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
-				},
+				}, timeFlags...),
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					cfg := config.New()
 					conn, err := db.New(cfg.ClickHouse)
@@ -91,12 +103,10 @@ func main() {
 				Name:      "traces",
 				Usage:     "Query traces. Pass a trace ID to inspect a specific trace.",
 				ArgsUsage: "[trace-id]",
-				Flags: []cli.Flag{
+				Flags: append([]cli.Flag{
 					&cli.StringFlag{Name: "service", Aliases: []string{"s"}, Usage: "Filter by service name"},
-					&cli.DurationFlag{Name: "since", Value: time.Hour, Usage: "How far back to look"},
-					&cli.StringFlag{Name: "to", Usage: "End time (RFC3339), defaults to now"},
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
-				},
+				}, timeFlags...),
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					cfg := config.New()
 					conn, err := db.New(cfg.ClickHouse)
