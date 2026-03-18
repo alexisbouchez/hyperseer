@@ -182,13 +182,13 @@ func supabaseBrowserLogin(baseURL string) error {
 	ln, port := listenLocalhost()
 	doneCh := make(chan error, 1)
 
-	loginHTML := fmt.Sprintf(`<!DOCTYPE html>
+	loginHTML := `<!DOCTYPE html>
 <html><head><title>Hyperseer Login</title><style>
 body{font-family:system-ui,sans-serif;max-width:360px;margin:80px auto;padding:0 20px}
 h2{margin-bottom:24px}
 label{font-size:13px;font-weight:600}
-input{display:block;width:100%%;margin:6px 0 16px;padding:9px 10px;font-size:14px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box}
-button{background:#0f172a;color:#fff;border:none;padding:10px 20px;font-size:14px;border-radius:6px;cursor:pointer;width:100%%}
+input{display:block;width:100%;margin:6px 0 16px;padding:9px 10px;font-size:14px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box}
+button{background:#0f172a;color:#fff;border:none;padding:10px 20px;font-size:14px;border-radius:6px;cursor:pointer;width:100%}
 #err{color:#dc2626;font-size:13px;margin-top:12px;min-height:18px}
 </style></head><body>
 <h2>Hyperseer</h2>
@@ -210,7 +210,7 @@ document.getElementById('f').addEventListener('submit',async e=>{
 });
 </script>
 </body></html>
-`, baseURL)
+`
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
