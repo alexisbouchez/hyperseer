@@ -4,13 +4,28 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
-func respond(w http.ResponseWriter, msg proto.Message) {
+func unmarshal(contentType string, body []byte, msg proto.Message) error {
+	if strings.Contains(contentType, "application/json") {
+		return protojson.Unmarshal(body, msg)
+	}
+	return proto.Unmarshal(body, msg)
+}
+
+func respond(w http.ResponseWriter, req *http.Request, msg proto.Message) {
+	if strings.Contains(req.Header.Get("Content-Type"), "application/json") {
+		out, _ := protojson.Marshal(msg)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(out)
+		return
+	}
 	out, _ := proto.Marshal(msg)
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	w.Write(out)

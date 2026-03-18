@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 
 	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 )
@@ -19,7 +18,7 @@ func (r *Receiver) handleLogs(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var export collogspb.ExportLogsServiceRequest
-	if err := proto.Unmarshal(body, &export); err != nil {
+	if err := unmarshal(req.Header.Get("Content-Type"), body, &export); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -83,5 +82,5 @@ func (r *Receiver) handleLogs(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	respond(w, &collogspb.ExportLogsServiceResponse{})
+	respond(w, req, &collogspb.ExportLogsServiceResponse{})
 }

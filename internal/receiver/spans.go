@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
@@ -19,7 +18,7 @@ func (r *Receiver) handleTraces(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var export coltracepb.ExportTraceServiceRequest
-	if err := proto.Unmarshal(body, &export); err != nil {
+	if err := unmarshal(req.Header.Get("Content-Type"), body, &export); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -88,5 +87,5 @@ func (r *Receiver) handleTraces(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	respond(w, &coltracepb.ExportTraceServiceResponse{})
+	respond(w, req, &coltracepb.ExportTraceServiceResponse{})
 }
