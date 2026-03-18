@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -47,6 +48,19 @@ func portFree(port int) bool {
 }
 
 func main() {
+	var (
+		flagDomain    = flag.String("domain", "", "Domain (e.g. otel.example.com)")
+		flagPassword  = flag.String("password", "", "ClickHouse password (auto-generated if omitted)")
+		flagRetention = flag.String("retention", "", "Data retention in days: 7, 30, 90, or 365")
+		flagCaddy     = flag.String("caddy", "", "Proxy mode: new, existing, or skip")
+		flagYes       = flag.Bool("yes", false, "Skip confirmation prompt")
+	)
+	flag.Parse()
+
+	// Track which flags were explicitly set
+	set := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+
 	fmt.Println("\033[1mHyperseer Installation\033[0m")
 	fmt.Println()
 
@@ -63,43 +77,65 @@ func main() {
 		Retention:  "30",
 		CaddyMode:  "new",
 	}
-
-	if err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Domain").
-				Description("Where Hyperseer will be accessible (e.g. otel.example.com)").
-				Value(&cfg.Domain),
-			huh.NewInput().
-				Title("ClickHouse password").
-				Value(&cfg.CHPassword),
-			huh.NewSelect[string]().
-				Title("Data retention").
-				Options(
-					huh.NewOption("7 days", "7"),
-					huh.NewOption("30 days", "30"),
-					huh.NewOption("90 days", "90"),
-					huh.NewOption("1 year", "365"),
-				).
-				Value(&cfg.Retention),
-		),
-	).Run(); err != nil {
-		exit.WithError(err)
+	if set["domain"] {
+		cfg.Domain = *flagDomain
+	}
+	if set["password"] {
+		cfg.CHPassword = *flagPassword
+	}
+	if set["retention"] {
+		cfg.Retention = *flagRetention
+	}
+	if set["caddy"] {
+		cfg.CaddyMode = *flagCaddy
 	}
 
-	if err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Reverse proxy / HTTPS").
-				Options(
-					huh.NewOption("Create a new Caddy instance (Docker)", "new"),
-					huh.NewOption("I have an existing Caddy — show me the config snippet", "existing"),
-					huh.NewOption("Skip proxy configuration", "skip"),
-				).
-				Value(&cfg.CaddyMode),
-		),
-	).Run(); err != nil {
-		exit.WithError(err)
+	// Group 1: domain, password, retention — only fields not provided via flags
+	var group1 []huh.Field
+	if !set["domain"] {
+		group1 = append(group1, huh.NewInput().
+			Title("Domain").
+			Description("Where Hyperseer will be accessible (e.g. otel.example.com)").
+			Value(&cfg.Domain))
+	}
+	if !set["password"] {
+		group1 = append(group1, huh.NewInput().
+			Title("ClickHouse password").
+			Value(&cfg.CHPassword))
+	}
+	if !set["retention"] {
+		group1 = append(group1, huh.NewSelect[string]().
+			Title("Data retention").
+			Options(
+				huh.NewOption("7 days", "7"),
+				huh.NewOption("30 days", "30"),
+				huh.NewOption("90 days", "90"),
+				huh.NewOption("1 year", "365"),
+			).
+			Value(&cfg.Retention))
+	}
+	if len(group1) > 0 {
+		if err := huh.NewForm(huh.NewGroup(group1...)).Run(); err != nil {
+			exit.WithError(err)
+		}
+	}
+
+	// Group 2: caddy mode
+	if !set["caddy"] {
+		if err := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Reverse proxy / HTTPS").
+					Options(
+						huh.NewOption("Create a new Caddy instance (Docker)", "new"),
+						huh.NewOption("I have an existing Caddy — show me the config snippet", "existing"),
+						huh.NewOption("Skip proxy configuration", "skip"),
+					).
+					Value(&cfg.CaddyMode),
+			),
+		).Run(); err != nil {
+			exit.WithError(err)
+		}
 	}
 
 	if cfg.CaddyMode == "new" {
@@ -119,17 +155,20 @@ func main() {
 		fmt.Println()
 	}
 
-	var confirm bool
-	if err := huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Generate configuration files and start services?").
-				Affirmative("Yes, let's go").
-				Negative("Cancel").
-				Value(&confirm),
-		),
-	).Run(); err != nil {
-		exit.WithError(err)
+	// Confirmation
+	confirm := *flagYes
+	if !confirm {
+		if err := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Generate configuration files and start services?").
+					Affirmative("Yes, let's go").
+					Negative("Cancel").
+					Value(&confirm),
+			),
+		).Run(); err != nil {
+			exit.WithError(err)
+		}
 	}
 	if !confirm {
 		fmt.Println("Aborted.")
