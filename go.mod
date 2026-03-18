@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.43.0
 	github.com/charmbracelet/huh v1.0.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/urfave/cli/v3 v3.7.0
 	go.opentelemetry.io/proto/otlp v1.10.0
 	google.golang.org/protobuf v1.36.11
@@ -29,7 +30,6 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
