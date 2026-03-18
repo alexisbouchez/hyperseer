@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/urfave/cli/v3"
+
+	"github.com/alexisbouchez/hyperseer/internal/exit"
 )
 
 func main() {
@@ -19,7 +20,6 @@ func main() {
 	}
 
 	if err := app.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		exit.WithError(err)
 	}
 }
