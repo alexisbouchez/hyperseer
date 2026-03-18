@@ -139,7 +139,7 @@ func keycloakBrowserLogin(baseURL, realm, clientID string) error {
 	defer srv.Close()
 
 	openBrowser(authURL)
-	fmt.Print("waiting for browser… ")
+	fmt.Println("waiting for browser…")
 
 	var code string
 	select {
@@ -247,7 +247,7 @@ document.getElementById('f').addEventListener('submit',async e=>{
 	defer srv.Close()
 
 	openBrowser(fmt.Sprintf("http://localhost:%d", port))
-	fmt.Print("waiting for browser… ")
+	fmt.Println("waiting for browser…")
 
 	select {
 	case err := <-doneCh:
