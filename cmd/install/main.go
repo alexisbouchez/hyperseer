@@ -1,26 +1,239 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"strings"
 
-	"github.com/alexisbouchez/hyperseer/internal/config"
-	"github.com/alexisbouchez/hyperseer/internal/db"
+	"github.com/charmbracelet/huh"
+
 	"github.com/alexisbouchez/hyperseer/internal/exit"
-	"github.com/alexisbouchez/hyperseer/internal/schema"
 )
 
-func main() {
-	cfg := config.New()
+type installConfig struct {
+	Domain     string
+	CHPassword string
+	Retention  string
+	CaddyMode  string // "new", "existing", "skip"
+}
 
-	conn, err := db.New(cfg.ClickHouse)
+func randomPassword() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func checkDocker() error {
+	if err := exec.Command("docker", "info").Run(); err != nil {
+		return fmt.Errorf("docker is not available — is Docker running?")
+	}
+	if err := exec.Command("docker", "compose", "version").Run(); err != nil {
+		return fmt.Errorf("docker compose plugin is not available")
+	}
+	return nil
+}
+
+func portFree(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+func main() {
+	fmt.Println("\033[1mHyperseer Installation\033[0m")
+	fmt.Println()
+
+	fmt.Print("Checking Docker… ")
+	if err := checkDocker(); err != nil {
+		fmt.Println("\033[31m✗\033[0m")
 		exit.WithError(err)
 	}
-	defer conn.Close()
+	fmt.Println("\033[32m✓\033[0m")
+	fmt.Println()
 
-	if err := schema.Migrate(conn); err != nil {
+	cfg := installConfig{
+		CHPassword: randomPassword(),
+		Retention:  "30",
+		CaddyMode:  "new",
+	}
+
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Domain").
+				Description("Where Hyperseer will be accessible (e.g. otel.example.com)").
+				Value(&cfg.Domain),
+			huh.NewInput().
+				Title("ClickHouse password").
+				Value(&cfg.CHPassword),
+			huh.NewSelect[string]().
+				Title("Data retention").
+				Options(
+					huh.NewOption("7 days", "7"),
+					huh.NewOption("30 days", "30"),
+					huh.NewOption("90 days", "90"),
+					huh.NewOption("1 year", "365"),
+				).
+				Value(&cfg.Retention),
+		),
+	).Run(); err != nil {
 		exit.WithError(err)
 	}
 
-	fmt.Println("\033[32m•\033[0m ClickHouse schema ready")
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Reverse proxy / HTTPS").
+				Options(
+					huh.NewOption("Create a new Caddy instance (Docker)", "new"),
+					huh.NewOption("I have an existing Caddy — show me the config snippet", "existing"),
+					huh.NewOption("Skip proxy configuration", "skip"),
+				).
+				Value(&cfg.CaddyMode),
+		),
+	).Run(); err != nil {
+		exit.WithError(err)
+	}
+
+	if cfg.CaddyMode == "new" {
+		fmt.Print("Checking ports 80 and 443… ")
+		var busy []string
+		if !portFree(80) {
+			busy = append(busy, "80")
+		}
+		if !portFree(443) {
+			busy = append(busy, "443")
+		}
+		if len(busy) > 0 {
+			fmt.Println("\033[31m✗\033[0m")
+			exit.WithError(fmt.Errorf("port(s) %s already in use — free them or choose a different proxy option", strings.Join(busy, ", ")))
+		}
+		fmt.Println("\033[32m✓\033[0m")
+		fmt.Println()
+	}
+
+	var confirm bool
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Generate configuration files and start services?").
+				Affirmative("Yes, let's go").
+				Negative("Cancel").
+				Value(&confirm),
+		),
+	).Run(); err != nil {
+		exit.WithError(err)
+	}
+	if !confirm {
+		fmt.Println("Aborted.")
+		return
+	}
+
+	if err := writeEnv(cfg); err != nil {
+		exit.WithError(err)
+	}
+	fmt.Println("\033[32m•\033[0m wrote .env")
+
+	if err := writeCompose(cfg); err != nil {
+		exit.WithError(err)
+	}
+	fmt.Println("\033[32m•\033[0m wrote docker-compose.yml")
+
+	switch cfg.CaddyMode {
+	case "new":
+		if err := writeCaddyfile(cfg); err != nil {
+			exit.WithError(err)
+		}
+		fmt.Println("\033[32m•\033[0m wrote Caddyfile")
+	case "existing":
+		fmt.Printf("\n\033[1mAdd this block to your Caddyfile:\033[0m\n\n%s\n", caddySnippet(cfg))
+	}
+
+	fmt.Println()
+	cmd := exec.Command("docker", "compose", "up", "-d")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		exit.WithError(fmt.Errorf("docker compose up: %w", err))
+	}
+
+	fmt.Printf("\n\033[32m•\033[0m Hyperseer is live")
+	if cfg.Domain != "" {
+		fmt.Printf(" at https://%s", cfg.Domain)
+	}
+	fmt.Println()
+}
+
+func writeEnv(cfg installConfig) error {
+	content := fmt.Sprintf("CH_PASSWORD=%s\nDOMAIN=%s\nRETENTION_DAYS=%s\n",
+		cfg.CHPassword, cfg.Domain, cfg.Retention)
+	return os.WriteFile(".env", []byte(content), 0600)
+}
+
+func writeCompose(cfg installConfig) error {
+	var sb strings.Builder
+
+	sb.WriteString(`services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    environment:
+      CLICKHOUSE_DB: hyperseer
+      CLICKHOUSE_USER: hyperseer
+      CLICKHOUSE_PASSWORD: ${CH_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    restart: unless-stopped
+
+  serve:
+    image: ghcr.io/alexisbouchez/hyperseer-serve:latest
+    environment:
+      HYPERSEER_CH_HOST: clickhouse
+      HYPERSEER_CH_PASSWORD: ${CH_PASSWORD}
+    depends_on:
+      - clickhouse
+    restart: unless-stopped
+`)
+
+	if cfg.CaddyMode == "new" {
+		sb.WriteString(`
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - serve
+    restart: unless-stopped
+`)
+	}
+
+	sb.WriteString(`
+volumes:
+  clickhouse_data:
+`)
+	if cfg.CaddyMode == "new" {
+		sb.WriteString("  caddy_data:\n  caddy_config:\n")
+	}
+
+	return os.WriteFile("docker-compose.yml", []byte(sb.String()), 0644)
+}
+
+func caddySnippet(cfg installConfig) string {
+	return fmt.Sprintf("%s {\n\treverse_proxy serve:4318\n}\n", cfg.Domain)
+}
+
+func writeCaddyfile(cfg installConfig) error {
+	return os.WriteFile("Caddyfile", []byte(caddySnippet(cfg)), 0644)
 }
