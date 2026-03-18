@@ -54,11 +54,21 @@ func fetchTraceSpans(baseURL, traceID string) ([]query.Span, error) {
 
 func get[T any](rawURL string) (T, error) {
 	var zero T
-	resp, err := http.Get(rawURL)
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return zero, err
+	}
+	if token := loadToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return zero, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return zero, fmt.Errorf("unauthorized — run: seer login")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return zero, fmt.Errorf("query api returned %s", resp.Status)
 	}

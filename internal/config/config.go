@@ -10,7 +10,13 @@ type Config struct {
 	ClickHouse ClickHouseConfig
 	Serve      ServeConfig
 	Digest     DigestConfig
+	Auth       AuthConfig
 	QueryURL   string
+}
+
+type AuthConfig struct {
+	JWTSecret string // HS256 — Supabase
+	JWKSUrl   string // RS256 — Keycloak
 }
 
 type ClickHouseConfig struct {
@@ -46,6 +52,10 @@ func New() Config {
 		},
 		Digest: DigestConfig{
 			AnthropicAPIKey: env.GetVar("ANTHROPIC_API_KEY", ""),
+		},
+		Auth: AuthConfig{
+			JWTSecret: env.GetVar("HYPERSEER_JWT_SECRET", ""),
+			JWKSUrl:   env.GetVar("HYPERSEER_JWKS_URL", ""),
 		},
 		QueryURL: env.GetVar("HYPERSEER_QUERY_URL", "http://localhost:7777"),
 	}

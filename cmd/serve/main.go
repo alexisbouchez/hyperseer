@@ -34,7 +34,7 @@ func main() {
 
 	go func() {
 		slog.Info("query api listening", "addr", cfg.Serve.QueryAddr)
-		errc <- http.ListenAndServe(cfg.Serve.QueryAddr, api.New(conn).Handler())
+		errc <- http.ListenAndServe(cfg.Serve.QueryAddr, api.New(conn, cfg.Auth).Handler())
 	}()
 
 	exit.WithError(<-errc)

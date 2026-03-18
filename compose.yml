@@ -16,5 +16,52 @@ services:
       timeout: 5s
       retries: 10
 
+  # Keycloak — RS256, JWKS at http://localhost:8080/realms/hyperseer/protocol/openid-connect/certs
+  # Test user: test@example.com / password
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import
+
+  # Supabase GoTrue — HS256, JWT secret: hyperseer-dev-jwt-secret-32-chars-ok
+  # Sign up: curl -X POST http://localhost:9999/signup -H 'Content-Type: application/json' -d '{"email":"test@example.com","password":"password"}'
+  postgres:
+    image: supabase/postgres:15.1.0.147
+    environment:
+      POSTGRES_PASSWORD: supabase
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  gotrue:
+    image: supabase/gotrue:v2.143.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9999:9999"
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      DATABASE_URL: postgres://postgres:supabase@postgres:5432/postgres?sslmode=disable&search_path=auth
+      GOTRUE_SITE_URL: http://localhost
+      API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_JWT_SECRET: hyperseer-dev-jwt-secret-32-chars-ok
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+
 volumes:
   clickhouse_data:
+  postgres_data:

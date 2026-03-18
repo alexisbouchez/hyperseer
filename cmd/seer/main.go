@@ -73,6 +73,7 @@ func main() {
 			},
 		},
 		Commands: []*cli.Command{
+			loginCommand,
 			{
 				Name:  "logs",
 				Usage: "Query logs",

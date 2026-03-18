@@ -1,7 +1,7 @@
 # binaries
-seer
-serve
-install
+/seer
+/serve
+/install
 
 # environment
 .env
