@@ -79,6 +79,44 @@ seer traces --last 15m
 seer traces <trace-id>
 ```
 
+## Authentication
+
+By default the query API is open. Set one of the following environment variables on the server to enable JWT verification.
+
+### Supabase
+
+Set `HYPERSEER_JWT_SECRET` to the JWT secret from your Supabase project (Dashboard → Project Settings → API → JWT Secret):
+
+```bash
+HYPERSEER_JWT_SECRET=your-supabase-jwt-secret ./serve
+```
+
+Then log in from the CLI:
+
+```bash
+# Supabase Cloud
+seer login --provider supabase --url https://<project-ref>.supabase.co/auth/v1
+
+# Self-hosted
+seer login --provider supabase --url https://auth.your-domain.com
+```
+
+### Keycloak
+
+Set `HYPERSEER_JWKS_URL` to the JWKS endpoint of your Keycloak realm:
+
+```bash
+HYPERSEER_JWKS_URL=https://auth.your-domain.com/realms/your-realm/protocol/openid-connect/certs ./serve
+```
+
+Then log in from the CLI:
+
+```bash
+seer login --provider keycloak --url https://auth.your-domain.com --realm your-realm
+```
+
+The client ID defaults to `hyperseer-cli`. Your Keycloak client must have the Authorization Code flow enabled and `http://localhost:*` in its redirect URIs.
+
 ## License
 
 This project is licensed under the [GNU Affero General Public License v3.0](LICENSE.md).
