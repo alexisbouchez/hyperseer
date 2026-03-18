@@ -1,0 +1,20 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # Native TCP interface
+    environment:
+      CLICKHOUSE_DB: hyperseer
+      CLICKHOUSE_USER: hyperseer
+      CLICKHOUSE_PASSWORD: hyperseer
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "hyperseer", "--password", "hyperseer", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  clickhouse_data:
