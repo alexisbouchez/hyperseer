@@ -2,6 +2,14 @@
 
 > Observability for AI agents
 
+## Table of Contents
+
+- [About](#about)
+- [Self-hosting](#self-hosting)
+- [CLI](#cli)
+- [Authentication](#authentication)
+- [License](#license)
+
 ## About
 
 Hyperseer is a self-hosted OpenTelemetry backend that stores logs and traces in ClickHouse and exposes them through a command-line interface (CLI).
