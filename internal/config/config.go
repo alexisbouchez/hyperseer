@@ -10,6 +10,7 @@ type Config struct {
 	ClickHouse ClickHouseConfig
 	Serve      ServeConfig
 	Digest     DigestConfig
+	QueryURL   string
 }
 
 type ClickHouseConfig struct {
@@ -46,5 +47,6 @@ func New() Config {
 		Digest: DigestConfig{
 			AnthropicAPIKey: env.GetVar("ANTHROPIC_API_KEY", ""),
 		},
+		QueryURL: env.GetVar("HYPERSEER_QUERY_URL", "http://localhost:7777"),
 	}
 }

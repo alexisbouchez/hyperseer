@@ -9,15 +9,15 @@ import (
 )
 
 type Span struct {
-	TraceID     string
-	SpanID      string
-	ParentID    string
-	Name        string
-	ServiceName string
-	Kind        string
-	StatusCode  string
-	Time        time.Time
-	Duration    int64 // nanoseconds
+	TraceID     string    `json:"trace_id"`
+	SpanID      string    `json:"span_id"`
+	ParentID    string    `json:"parent_id"`
+	Name        string    `json:"name"`
+	ServiceName string    `json:"service_name"`
+	Kind        string    `json:"kind"`
+	StatusCode  string    `json:"status_code"`
+	Time        time.Time `json:"time"`
+	Duration    int64     `json:"duration"` // nanoseconds
 }
 
 type TracesParams struct {

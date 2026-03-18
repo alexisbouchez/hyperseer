@@ -10,7 +10,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/alexisbouchez/hyperseer/internal/config"
-	"github.com/alexisbouchez/hyperseer/internal/db"
 	"github.com/alexisbouchez/hyperseer/internal/exit"
 	"github.com/alexisbouchez/hyperseer/internal/query"
 )
@@ -55,10 +54,24 @@ var timeFlags = []cli.Flag{
 	&cli.DurationFlag{Name: "last", Usage: "Shorthand: last N duration ending at --to (e.g. --last 30m)"},
 }
 
+func serverURL(cmd *cli.Command) string {
+	return cmd.Root().String("server")
+}
+
 func main() {
+	cfg := config.New()
+
 	app := &cli.Command{
 		Name:  "seer",
 		Usage: "Hyperseer CLI",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "server",
+				Sources: cli.EnvVars("HYPERSEER_QUERY_URL"),
+				Value:   cfg.QueryURL,
+				Usage:   "Query API URL",
+			},
+		},
 		Commands: []*cli.Command{
 			{
 				Name:  "logs",
@@ -69,15 +82,8 @@ func main() {
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
 				}, timeFlags...),
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					cfg := config.New()
-					conn, err := db.New(cfg.ClickHouse)
-					if err != nil {
-						return err
-					}
-					defer conn.Close()
-
 					from, to := timeRange(cmd)
-					logs, err := query.Logs(ctx, conn, query.LogsParams{
+					logs, err := fetchLogs(serverURL(cmd), query.LogsParams{
 						Service:  cmd.String("service"),
 						Severity: cmd.String("severity"),
 						Since:    from,
@@ -87,7 +93,6 @@ func main() {
 					if err != nil {
 						return err
 					}
-
 					for _, l := range logs {
 						fmt.Fprintf(os.Stdout, "%s  %s  %s  %s\n",
 							l.Time.Format("2006-01-02 15:04:05"),
@@ -108,15 +113,8 @@ func main() {
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
 				}, timeFlags...),
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					cfg := config.New()
-					conn, err := db.New(cfg.ClickHouse)
-					if err != nil {
-						return err
-					}
-					defer conn.Close()
-
 					if traceID := cmd.Args().First(); traceID != "" {
-						spans, err := query.TraceSpans(ctx, conn, traceID)
+						spans, err := fetchTraceSpans(serverURL(cmd), traceID)
 						if err != nil {
 							return err
 						}
@@ -125,7 +123,7 @@ func main() {
 					}
 
 					from, to := timeRange(cmd)
-					spans, err := query.Traces(ctx, conn, query.TracesParams{
+					spans, err := fetchTraces(serverURL(cmd), query.TracesParams{
 						Service: cmd.String("service"),
 						Since:   from,
 						Until:   to,

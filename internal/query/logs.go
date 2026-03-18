@@ -9,10 +9,10 @@ import (
 )
 
 type Log struct {
-	Time        time.Time
-	Severity    string
-	ServiceName string
-	Body        string
+	Time        time.Time `json:"time"`
+	Severity    string    `json:"severity"`
+	ServiceName string    `json:"service_name"`
+	Body        string    `json:"body"`
 }
 
 type LogsParams struct {

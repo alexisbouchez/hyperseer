@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alexisbouchez/hyperseer/internal/api"
 	"github.com/alexisbouchez/hyperseer/internal/config"
 	"github.com/alexisbouchez/hyperseer/internal/db"
 	"github.com/alexisbouchez/hyperseer/internal/exit"
@@ -24,10 +25,17 @@ func main() {
 		exit.WithError(err)
 	}
 
-	r := receiver.New(conn)
+	errc := make(chan error, 2)
 
-	slog.Info("http server listening for requests", "addr", cfg.Serve.OTLPAddr)
-	if err := http.ListenAndServe(cfg.Serve.OTLPAddr, r.Handler()); err != nil {
-		exit.WithError(err)
-	}
+	go func() {
+		slog.Info("otlp receiver listening", "addr", cfg.Serve.OTLPAddr)
+		errc <- http.ListenAndServe(cfg.Serve.OTLPAddr, receiver.New(conn).Handler())
+	}()
+
+	go func() {
+		slog.Info("query api listening", "addr", cfg.Serve.QueryAddr)
+		errc <- http.ListenAndServe(cfg.Serve.QueryAddr, api.New(conn).Handler())
+	}()
+
+	exit.WithError(<-errc)
 }
