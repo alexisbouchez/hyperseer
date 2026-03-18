@@ -9,6 +9,7 @@ import (
 type Config struct {
 	ClickHouse ClickHouseConfig
 	Serve      ServeConfig
+	Digest     DigestConfig
 }
 
 type ClickHouseConfig struct {
@@ -24,6 +25,10 @@ type ServeConfig struct {
 	QueryAddr string
 }
 
+type DigestConfig struct {
+	AnthropicAPIKey string
+}
+
 func New() Config {
 	port, _ := strconv.Atoi(env.GetVar("HYPERSEER_CH_PORT", "9000"))
 	return Config{
@@ -37,6 +42,9 @@ func New() Config {
 		Serve: ServeConfig{
 			OTLPAddr:  env.GetVar("HYPERSEER_OTLP_ADDR", ":4318"),
 			QueryAddr: env.GetVar("HYPERSEER_QUERY_ADDR", ":7777"),
+		},
+		Digest: DigestConfig{
+			AnthropicAPIKey: env.GetVar("ANTHROPIC_API_KEY", ""),
 		},
 	}
 }

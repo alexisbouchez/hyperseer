@@ -30,6 +30,17 @@ func statusColor(s string) string {
 	}
 }
 
+func timeRange(cmd *cli.Command) (from, to time.Time) {
+	to = time.Now()
+	if t := cmd.String("to"); t != "" {
+		if parsed, err := time.Parse(time.RFC3339, t); err == nil {
+			to = parsed
+		}
+	}
+	from = to.Add(-cmd.Duration("since"))
+	return
+}
+
 func main() {
 	app := &cli.Command{
 		Name:  "seer",
@@ -42,6 +53,7 @@ func main() {
 					&cli.StringFlag{Name: "service", Aliases: []string{"s"}, Usage: "Filter by service name"},
 					&cli.StringFlag{Name: "severity", Usage: "Filter by severity"},
 					&cli.DurationFlag{Name: "since", Value: time.Hour, Usage: "How far back to look"},
+					&cli.StringFlag{Name: "to", Usage: "End time (RFC3339), defaults to now"},
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -52,10 +64,12 @@ func main() {
 					}
 					defer conn.Close()
 
+					from, to := timeRange(cmd)
 					logs, err := query.Logs(ctx, conn, query.LogsParams{
 						Service:  cmd.String("service"),
 						Severity: cmd.String("severity"),
-						Since:    time.Now().Add(-cmd.Duration("since")),
+						Since:    from,
+						Until:    to,
 						Limit:    cmd.Int("limit"),
 					})
 					if err != nil {
@@ -80,6 +94,7 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "service", Aliases: []string{"s"}, Usage: "Filter by service name"},
 					&cli.DurationFlag{Name: "since", Value: time.Hour, Usage: "How far back to look"},
+					&cli.StringFlag{Name: "to", Usage: "End time (RFC3339), defaults to now"},
 					&cli.IntFlag{Name: "limit", Aliases: []string{"n"}, Value: 50, Usage: "Max results"},
 				},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -99,9 +114,11 @@ func main() {
 						return nil
 					}
 
+					from, to := timeRange(cmd)
 					spans, err := query.Traces(ctx, conn, query.TracesParams{
 						Service: cmd.String("service"),
-						Since:   time.Now().Add(-cmd.Duration("since")),
+						Since:   from,
+						Until:   to,
 						Limit:   cmd.Int("limit"),
 					})
 					if err != nil {

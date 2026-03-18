@@ -19,6 +19,7 @@ type LogsParams struct {
 	Service  string
 	Severity string
 	Since    time.Time
+	Until    time.Time
 	Limit    int
 }
 
@@ -27,7 +28,7 @@ func Logs(ctx context.Context, conn driver.Conn, p LogsParams) ([]Log, error) {
 		SELECT time, severity, service_name, body
 		FROM logs_index
 		WHERE project_id = 1
-		  AND time >= ?
+		  AND time >= ? AND time <= ?
 		  AND (? = '' OR service_name = ?)
 		  AND (? = '' OR severity = ?)
 		ORDER BY time DESC
@@ -35,7 +36,7 @@ func Logs(ctx context.Context, conn driver.Conn, p LogsParams) ([]Log, error) {
 	`, p.Limit)
 
 	rows, err := conn.Query(ctx, q,
-		p.Since,
+		p.Since, p.Until,
 		p.Service, p.Service,
 		p.Severity, p.Severity,
 	)

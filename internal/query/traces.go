@@ -23,6 +23,7 @@ type Span struct {
 type TracesParams struct {
 	Service string
 	Since   time.Time
+	Until   time.Time
 	Limit   int
 }
 
@@ -32,14 +33,14 @@ func Traces(ctx context.Context, conn driver.Conn, p TracesParams) ([]Span, erro
 		FROM spans_index
 		WHERE project_id = 1
 		  AND parent_span_id = ''
-		  AND time >= ?
+		  AND time >= ? AND time <= ?
 		  AND (? = '' OR service_name = ?)
 		ORDER BY time DESC
 		LIMIT %d
 	`, p.Limit)
 
 	return scanSpans(conn.Query(ctx, q,
-		p.Since,
+		p.Since, p.Until,
 		p.Service, p.Service,
 	))
 }
