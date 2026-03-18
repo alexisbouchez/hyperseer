@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -24,16 +30,11 @@ var loginCommand = &cli.Command{
 		&cli.StringFlag{Name: "url", Usage: "Provider base URL (e.g. http://localhost:8080)"},
 		&cli.StringFlag{Name: "realm", Value: "hyperseer", Usage: "Keycloak realm"},
 		&cli.StringFlag{Name: "client-id", Value: "hyperseer-cli", Usage: "Keycloak client ID"},
-		&cli.StringFlag{Name: "email", Usage: "Email / username"},
-		&cli.StringFlag{Name: "password", Usage: "Password"},
 	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		provider := cmd.String("provider")
 		providerURL := cmd.String("url")
-		email := cmd.String("email")
-		password := cmd.String("password")
 
-		// Prompt for anything missing
 		var formFields []huh.Field
 		if provider == "" {
 			formFields = append(formFields, huh.NewSelect[string]().
@@ -49,68 +50,216 @@ var loginCommand = &cli.Command{
 				Title("Provider URL").
 				Value(&providerURL))
 		}
-		if email == "" {
-			formFields = append(formFields, huh.NewInput().
-				Title("Email").
-				Value(&email))
-		}
-		if password == "" {
-			formFields = append(formFields, huh.NewInput().
-				Title("Password").
-				EchoMode(huh.EchoModePassword).
-				Value(&password))
-		}
 		if len(formFields) > 0 {
 			if err := huh.NewForm(huh.NewGroup(formFields...)).Run(); err != nil {
 				exit.WithError(err)
 			}
 		}
 
-		var (
-			accessToken string
-			expiresIn   int
-			err         error
-		)
-
 		switch provider {
 		case "keycloak":
-			accessToken, expiresIn, err = keycloakLogin(
-				providerURL, cmd.String("realm"), cmd.String("client-id"), email, password,
-			)
+			return keycloakBrowserLogin(providerURL, cmd.String("realm"), cmd.String("client-id"))
 		case "supabase":
-			accessToken, expiresIn, err = supabaseLogin(providerURL, email, password)
+			return supabaseBrowserLogin(providerURL)
 		default:
 			return fmt.Errorf("unknown provider %q — use keycloak or supabase", provider)
 		}
-		if err != nil {
-			return err
-		}
+	},
+}
 
+// pkce returns a random code_verifier and its S256 code_challenge.
+func pkce() (verifier, challenge string) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	verifier = base64.RawURLEncoding.EncodeToString(b)
+	h := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(h[:])
+	return
+}
+
+func listenLocalhost() (net.Listener, int) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		exit.WithError(err)
+	}
+	return ln, ln.Addr().(*net.TCPAddr).Port
+}
+
+func openBrowser(rawURL string) {
+	fmt.Printf("\033[2m  opening %s\033[0m\n", rawURL)
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", rawURL)
+	case "linux":
+		cmd = exec.Command("xdg-open", rawURL)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", rawURL)
+	default:
+		fmt.Printf("  visit: %s\n", rawURL)
+		return
+	}
+	_ = cmd.Start()
+}
+
+func keycloakBrowserLogin(baseURL, realm, clientID string) error {
+	verifier, challenge := pkce()
+	ln, port := listenLocalhost()
+	redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
+
+	params := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {clientID},
+		"redirect_uri":          {redirectURI},
+		"code_challenge":        {challenge},
+		"code_challenge_method": {"S256"},
+	}
+	authURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/auth?%s", baseURL, realm, params.Encode())
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		if e := r.URL.Query().Get("error"); e != "" {
+			desc := r.URL.Query().Get("error_description")
+			errCh <- fmt.Errorf("%s: %s", e, desc)
+			fmt.Fprintln(w, `<html><body><p>Authentication failed. You can close this tab.</p></body></html>`)
+			return
+		}
+		codeCh <- r.URL.Query().Get("code")
+		fmt.Fprintln(w, `<html><body><p>Logged in! You can close this tab.</p></body></html>`)
+	})
+
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(ln) //nolint:errcheck
+	defer srv.Close()
+
+	openBrowser(authURL)
+	fmt.Print("waiting for browser… ")
+
+	var code string
+	select {
+	case code = <-codeCh:
+	case err := <-errCh:
+		return err
+	case <-time.After(2 * time.Minute):
+		return fmt.Errorf("login timed out")
+	}
+
+	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", baseURL, realm)
+	resp, err := http.PostForm(tokenURL, url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {clientID},
+		"code":          {code},
+		"redirect_uri":  {redirectURI},
+		"code_verifier": {verifier},
+	})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	accessToken, expiresIn, err := parseTokenResponse(resp)
+	if err != nil {
+		return err
+	}
+	if err := saveToken(storedToken{
+		AccessToken: accessToken,
+		ExpiresAt:   time.Now().Add(time.Duration(expiresIn) * time.Second),
+	}); err != nil {
+		return err
+	}
+
+	fmt.Println("\033[32m•\033[0m logged in")
+	return nil
+}
+
+func supabaseBrowserLogin(baseURL string) error {
+	ln, port := listenLocalhost()
+	doneCh := make(chan error, 1)
+
+	loginHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html><head><title>Hyperseer Login</title><style>
+body{font-family:system-ui,sans-serif;max-width:360px;margin:80px auto;padding:0 20px}
+h2{margin-bottom:24px}
+label{font-size:13px;font-weight:600}
+input{display:block;width:100%%;margin:6px 0 16px;padding:9px 10px;font-size:14px;border:1px solid #d1d5db;border-radius:6px;box-sizing:border-box}
+button{background:#0f172a;color:#fff;border:none;padding:10px 20px;font-size:14px;border-radius:6px;cursor:pointer;width:100%%}
+#err{color:#dc2626;font-size:13px;margin-top:12px;min-height:18px}
+</style></head><body>
+<h2>Hyperseer</h2>
+<form id="f">
+  <label>Email</label><input type="email" id="email" required autofocus>
+  <label>Password</label><input type="password" id="password" required>
+  <button type="submit">Sign in</button>
+  <p id="err"></p>
+</form>
+<script>
+document.getElementById('f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const errEl=document.getElementById('err');
+  errEl.textContent='';
+  const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('password').value})});
+  if(!r.ok){errEl.textContent=await r.text();return;}
+  document.body.innerHTML='<p style="margin-top:80px;text-align:center">Logged in! You can close this tab.</p>';
+});
+</script>
+</body></html>
+`, baseURL)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, loginHTML)
+	})
+	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+		var creds struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		accessToken, expiresIn, err := supabaseLogin(baseURL, creds.Email, creds.Password)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 		if err := saveToken(storedToken{
 			AccessToken: accessToken,
 			ExpiresAt:   time.Now().Add(time.Duration(expiresIn) * time.Second),
 		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		doneCh <- nil
+	})
+
+	srv := &http.Server{Handler: mux}
+	go srv.Serve(ln) //nolint:errcheck
+	defer srv.Close()
+
+	openBrowser(fmt.Sprintf("http://localhost:%d", port))
+	fmt.Print("waiting for browser… ")
+
+	select {
+	case err := <-doneCh:
+		if err != nil {
 			return err
 		}
-
-		fmt.Println("\033[32m•\033[0m logged in")
-		return nil
-	},
-}
-
-func keycloakLogin(baseURL, realm, clientID, username, password string) (string, int, error) {
-	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", baseURL, realm)
-	resp, err := http.PostForm(endpoint, url.Values{
-		"grant_type": {"password"},
-		"client_id":  {clientID},
-		"username":   {username},
-		"password":   {password},
-	})
-	if err != nil {
-		return "", 0, err
+	case <-time.After(2 * time.Minute):
+		return fmt.Errorf("login timed out")
 	}
-	defer resp.Body.Close()
-	return parseTokenResponse(resp)
+
+	fmt.Println("\033[32m•\033[0m logged in")
+	return nil
 }
 
 func supabaseLogin(baseURL, email, password string) (string, int, error) {

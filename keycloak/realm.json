@@ -7,8 +7,9 @@
       "clientId": "hyperseer-cli",
       "enabled": true,
       "publicClient": true,
-      "directAccessGrantsEnabled": true,
-      "standardFlowEnabled": false
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:*"]
     }
   ],
   "users": [
