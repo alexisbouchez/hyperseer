@@ -35,7 +35,7 @@ func New() Config {
 			Password: env.GetVar("HYPERSEER_CH_PASSWORD", "hyperseer"),
 		},
 		Serve: ServeConfig{
-			OTLPAddr:  env.GetVar("HYPERSEER_OTLP_ADDR", ":4317"),
+			OTLPAddr:  env.GetVar("HYPERSEER_OTLP_ADDR", ":4318"),
 			QueryAddr: env.GetVar("HYPERSEER_QUERY_ADDR", ":7777"),
 		},
 	}

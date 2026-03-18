@@ -66,7 +66,7 @@ func (r *Receiver) handleTraces(w http.ResponseWriter, req *http.Request) {
 				t := time.Unix(0, int64(span.StartTimeUnixNano))
 				duration := int64(span.EndTimeUnixNano - span.StartTimeUnixNano)
 
-				_ = indexBatch.Append(
+				if err := indexBatch.Append(
 					uint32(1),
 					hexID(span.TraceId),
 					hexID(span.SpanId),
@@ -80,16 +80,22 @@ func (r *Receiver) handleTraces(w http.ResponseWriter, req *http.Request) {
 					duration,
 					keys,
 					vals,
-				)
+				); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
 				data, _ := protojson.Marshal(span)
-				_ = dataBatch.Append(
+				if err := dataBatch.Append(
 					uint32(1),
 					hexID(span.TraceId),
 					hexID(span.SpanId),
 					t,
 					string(data),
-				)
+				); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 			}
 		}
 	}
@@ -139,7 +145,7 @@ func (r *Receiver) handleLogs(w http.ResponseWriter, req *http.Request) {
 				keys, vals := attrKV(record.Attributes)
 				t := time.Unix(0, int64(record.TimeUnixNano))
 
-				_ = indexBatch.Append(
+				if err := indexBatch.Append(
 					uint32(1),
 					hexID(record.TraceId),
 					hexID(record.SpanId),
@@ -149,16 +155,22 @@ func (r *Receiver) handleLogs(w http.ResponseWriter, req *http.Request) {
 					t,
 					keys,
 					vals,
-				)
+				); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
 				data, _ := protojson.Marshal(record)
-				_ = dataBatch.Append(
+				if err := dataBatch.Append(
 					uint32(1),
 					hexID(record.TraceId),
 					hexID(record.SpanId),
 					t,
 					string(data),
-				)
+				); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 			}
 		}
 	}
@@ -202,7 +214,29 @@ func attrKV(attrs []*commonpb.KeyValue) ([]string, []string) {
 	vals := make([]string, len(attrs))
 	for i, a := range attrs {
 		keys[i] = a.Key
-		vals[i] = fmt.Sprintf("%v", a.Value.GetValue())
+		vals[i] = anyValueString(a.Value)
 	}
 	return keys, vals
+}
+
+func anyValueString(v *commonpb.AnyValue) string {
+	if v == nil {
+		return ""
+	}
+	switch x := v.Value.(type) {
+	case *commonpb.AnyValue_StringValue:
+		return x.StringValue
+	case *commonpb.AnyValue_BoolValue:
+		return fmt.Sprintf("%t", x.BoolValue)
+	case *commonpb.AnyValue_IntValue:
+		return fmt.Sprintf("%d", x.IntValue)
+	case *commonpb.AnyValue_DoubleValue:
+		return fmt.Sprintf("%g", x.DoubleValue)
+	case *commonpb.AnyValue_ArrayValue:
+		return fmt.Sprintf("%v", x.ArrayValue)
+	case *commonpb.AnyValue_KvlistValue:
+		return fmt.Sprintf("%v", x.KvlistValue)
+	default:
+		return ""
+	}
 }
