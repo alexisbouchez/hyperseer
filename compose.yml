@@ -27,7 +27,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./keycloak:/opt/keycloak/data/import
+      - ./zarf/keycloak:/opt/keycloak/data/import
 
   # Supabase GoTrue — HS256, JWT secret: hyperseer-dev-jwt-secret-32-chars-ok
   # Sign up: curl -X POST http://localhost:9999/signup -H 'Content-Type: application/json' -d '{"email":"test@example.com","password":"password"}'
