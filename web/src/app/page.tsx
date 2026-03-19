@@ -1,5 +1,6 @@
+'use client'
 import { useState, useEffect } from 'react'
-import { MOCK_DIGEST } from '../lib/mock'
+import { MOCK_DIGEST } from '@/lib/mock'
 
 function fmt(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`

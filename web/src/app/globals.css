@@ -6,21 +6,18 @@
   font-weight: 300;
   font-style: normal;
 }
-
 @font-face {
   font-family: 'IoskeleyMono';
   src: url('/fonts/IoskeleyMono-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
 }
-
 @font-face {
   font-family: 'IoskeleyMono';
   src: url('/fonts/IoskeleyMono-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
 }
-
 @font-face {
   font-family: 'IoskeleyMono';
   src: url('/fonts/IoskeleyMono-Bold.woff2') format('woff2');
@@ -44,7 +41,7 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root {
+html, body {
   height: 100%;
   margin: 0;
   font-family: 'IoskeleyMono', 'Berkeley Mono', 'Iosevka', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;

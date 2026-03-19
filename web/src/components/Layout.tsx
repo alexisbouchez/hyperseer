@@ -1,6 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+'use client'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 const NAV = [
   { label: 'DIGEST', to: '/' },
@@ -9,11 +11,12 @@ const NAV = [
 ]
 
 export default function Layout({ session, children }: { session: Session | null, children: React.ReactNode }) {
-  const navigate = useNavigate()
+  const pathname = usePathname()
+  const router = useRouter()
 
   async function signOut() {
     await supabase.auth.signOut()
-    navigate('/auth')
+    router.push('/auth')
   }
 
   return (
@@ -28,24 +31,21 @@ export default function Layout({ session, children }: { session: Session | null,
         </div>
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
-          {NAV.map(({ label, to }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              style={({ isActive }) => ({
+          {NAV.map(({ label, to }) => {
+            const isActive = to === '/' ? pathname === '/' : pathname.startsWith(to)
+            return (
+              <Link key={to} href={to} style={{
                 display: 'block', padding: '7px 16px',
                 fontSize: 11, letterSpacing: '0.12em',
                 fontWeight: isActive ? 500 : 400,
                 color: isActive ? '#fff' : 'var(--muted)',
                 background: isActive ? 'var(--fg)' : 'transparent',
                 textDecoration: 'none',
-                transition: 'none',
-              })}
-            >
-              {label}
-            </NavLink>
-          ))}
+              }}>
+                {label}
+              </Link>
+            )
+          })}
         </nav>
 
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>

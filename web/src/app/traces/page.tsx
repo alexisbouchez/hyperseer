@@ -1,6 +1,7 @@
+'use client'
 import { useState, useMemo } from 'react'
-import { MOCK_TRACES } from '../lib/mock'
-import type { Trace, Span } from '../lib/mock'
+import { MOCK_TRACES } from '@/lib/mock'
+import type { Trace, Span } from '@/lib/mock'
 
 const TIME_RANGES = [
   { label: '5M',  ms: 5 * 60 * 1000 },
@@ -247,7 +248,7 @@ export default function TracesPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((trace, _i) => (
+            {filtered.map((trace) => (
               <>
                 <tr
                   key={trace.trace_id}

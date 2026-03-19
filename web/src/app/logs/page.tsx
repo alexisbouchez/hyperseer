@@ -1,6 +1,7 @@
+'use client'
 import { useState, useMemo, useRef } from 'react'
-import { MOCK_LOGS } from '../lib/mock'
-import type { Log } from '../lib/mock'
+import { MOCK_LOGS } from '@/lib/mock'
+import type { Log } from '@/lib/mock'
 
 const LEVELS: Log['level'][] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
 const SERVICES = ['all', 'api-gateway', 'auth-service', 'payment-service', 'notification-service', 'user-service']
@@ -187,7 +188,7 @@ export default function LogsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((log, _i) => (
+            {filtered.map((log) => (
               <>
                 <tr
                   key={log.id}
