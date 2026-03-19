@@ -18,5 +18,5 @@ CREATE TABLE IF NOT EXISTS spans_index (
 ) ENGINE = MergeTree
 PARTITION BY toDate(time)
 ORDER BY (project_id, service_name, time)
-TTL time + INTERVAL 30 DAY
+TTL time + INTERVAL 7 DAY
 SETTINGS ttl_only_drop_parts = 1

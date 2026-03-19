@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS spans_data (
 ) ENGINE = MergeTree
 PARTITION BY toDate(time)
 ORDER BY (project_id, trace_id, span_id)
-TTL toDateTime(time) + INTERVAL 30 DAY
+TTL toDateTime(time) + INTERVAL 7 DAY
 SETTINGS ttl_only_drop_parts = 1
