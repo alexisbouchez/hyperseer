@@ -11,6 +11,7 @@
 - [Approach](#approach)
 - [Self-hosting](#self-hosting)
 - [CLI](#cli)
+- [AI agent integration](#ai-agent-integration)
 - [Authentication](#authentication)
 - [License](#license)
 
@@ -97,6 +98,22 @@ seer traces --last 15m
 
 # inspect a specific trace (waterfall view)
 seer traces <trace-id>
+```
+
+### AI agent integration
+
+Run this once after installing `seer`. It writes `~/.claude/commands/hyperseer.md` — a skill that gives Claude Code (and compatible agents) full context about your Hyperseer instance.
+
+```bash
+seer install --server https://your-hyperseer-domain.com
+```
+
+Claude can then call `seer` directly when you ask about errors, slow requests, or traces. No MCP server, no dashboard.
+
+Add `--project` to also inject a short reference block into the current project's `CLAUDE.md`:
+
+```bash
+seer install --server https://your-hyperseer-domain.com --project
 ```
 
 ## Authentication
