@@ -13,15 +13,15 @@
 
 ## About
 
-Hyperseer is a self-hosted OpenTelemetry backend that stores logs and traces in ClickHouse and exposes them through a command-line interface (CLI).
+Hyperseer is a self-hosted OpenTelemetry backend. It stores logs and traces in ClickHouse and exposes them through a CLI.
 
 ## Approach
 
-Most observability tools expect you to open a browser. Hyperseer is built for the terminal first — the primary interface is `seer`, a CLI you can call directly from your shell or pipe into anything else.
+Most observability tools expect you to open a browser. Hyperseer is built for the terminal first. The primary interface is `seer`, a CLI you can call directly from your shell or pipe into anything else.
 
-This makes it a natural fit as a context source for AI coding agents: Claude Code, OpenAI Codex, Mistral Vibe, and similar tools can call `seer logs` or `seer traces` inline and get structured, readable output without leaving their environment. No MCP server required, no browser tab, no dashboard to navigate. Just text that agents and humans can both read.
+This makes it a natural fit as a context source for AI coding agents. Claude Code, OpenAI Codex, Mistral Vibe, and similar tools can call `seer logs` or `seer traces` inline and get structured, readable output without leaving their environment. No MCP server required, no browser tab, no dashboard to navigate. Just text that agents and humans can both read.
 
-The tradeoff is intentional. A CLI will always be less visual than a UI, but it composes better, works over SSH, and fits naturally into the feedback loops that matter most when debugging with an AI agent.
+A CLI will always be less visual than a UI. It composes better, works over SSH, and fits naturally into the feedback loops that matter most when debugging with an AI agent.
 
 ## Self-hosting
 
@@ -98,7 +98,7 @@ seer traces <trace-id>
 
 ## Authentication
 
-By default the query API is open. To enable JWT verification, configure an auth provider on the server. The CLI discovers the provider automatically — no flags needed at login time.
+By default the query API is open. To enable JWT verification, configure an auth provider on the server. The CLI discovers the provider automatically. No flags needed at login time.
 
 ### How it works
 
@@ -118,7 +118,7 @@ HYPERSEER_JWT_SECRET=<jwt-secret> \
 ./serve
 ```
 
-`HYPERSEER_JWT_SECRET` is the JWT secret from your Supabase project (Dashboard → Project Settings → API → JWT Secret).
+`HYPERSEER_JWT_SECRET` is the JWT secret from your Supabase project. Find it at Dashboard > Project Settings > API > JWT Secret.
 
 ### Keycloak
 
