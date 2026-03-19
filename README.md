@@ -19,7 +19,7 @@ Hyperseer is a self-hosted OpenTelemetry backend that stores logs and traces in 
 
 Most observability tools expect you to open a browser. Hyperseer is built for the terminal first — the primary interface is `seer`, a CLI you can call directly from your shell or pipe into anything else.
 
-This makes it a natural fit as a context source for AI coding agents: Claude Code, OpenAI Codex, Mistral Le Chat, and similar tools can call `seer logs` or `seer traces` inline and get structured, readable output without leaving their environment. No MCP server required, no browser tab, no dashboard to navigate — just text that agents and humans can both read.
+This makes it a natural fit as a context source for AI coding agents: Claude Code, OpenAI Codex, Mistral Vibe, and similar tools can call `seer logs` or `seer traces` inline and get structured, readable output without leaving their environment. No MCP server required, no browser tab, no dashboard to navigate. Just text that agents and humans can both read.
 
 The tradeoff is intentional. A CLI will always be less visual than a UI, but it composes better, works over SSH, and fits naturally into the feedback loops that matter most when debugging with an AI agent.
 
