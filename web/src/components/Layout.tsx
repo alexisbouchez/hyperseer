@@ -12,13 +12,15 @@ export default function Layout({ email, onSignOut, children }: { email: string |
   const pathname = usePathname()
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       <aside style={{
-        width: 180, flexShrink: 0, background: '#f8f8f8', borderRight: '1px solid var(--border)',
+        width: 180, flexShrink: 0, background: '#fff',
+        borderRight: '1px solid var(--border)',
+        boxShadow: '2px 0 0 rgba(0,0,0,0.04)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
         <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', fontWeight: 600, color: 'var(--fg)' }}>HYPERSEER</div>
+          <div style={{ fontSize: 11, letterSpacing: '0.18em', fontWeight: 700, color: 'var(--fg)' }}>HYPERSEER</div>
         </div>
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
@@ -28,9 +30,10 @@ export default function Layout({ email, onSignOut, children }: { email: string |
               <Link key={to} href={to} style={{
                 display: 'block', padding: '7px 16px',
                 fontSize: 11, letterSpacing: '0.12em',
-                fontWeight: isActive ? 500 : 400,
-                color: isActive ? '#fff' : 'var(--muted)',
-                background: isActive ? 'var(--fg)' : 'transparent',
+                fontWeight: isActive ? 700 : 400,
+                color: isActive ? 'var(--fg)' : 'var(--muted)',
+                background: 'transparent',
+                borderLeft: isActive ? '2px solid var(--fg)' : '2px solid transparent',
                 textDecoration: 'none',
               }}>
                 {label}
@@ -56,8 +59,10 @@ export default function Layout({ email, onSignOut, children }: { email: string |
         </div>
       </aside>
 
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg)' }}>
-        {children}
+      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg)', padding: 16 }}>
+        <div style={{ background: '#fff', border: '1px solid var(--border)', boxShadow: 'var(--shadow)', minHeight: '100%' }}>
+          {children}
+        </div>
       </main>
     </div>
   )

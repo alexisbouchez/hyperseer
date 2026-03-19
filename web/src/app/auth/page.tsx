@@ -20,7 +20,7 @@ export default function AuthPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4f4f3' }}>
-      <div style={{ width: 380, background: 'var(--surface)', border: '1px solid var(--border)', padding: '32px 28px' }}>
+      <div style={{ width: 380, background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '4px 4px 0 rgba(0,0,0,0.12)', padding: '32px 28px' }}>
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 11, letterSpacing: '0.15em', color: 'var(--muted)', marginBottom: 4 }}>HYPERSEER</div>
           <div style={{ fontSize: 18, fontWeight: 500 }}>Sign in</div>

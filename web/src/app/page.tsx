@@ -12,6 +12,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
     <div style={{
       flex: 1, minWidth: 120,
       border: '1px solid var(--border)',
+      boxShadow: 'var(--shadow)',
       background: 'var(--surface)',
       padding: '12px 14px',
     }}>
