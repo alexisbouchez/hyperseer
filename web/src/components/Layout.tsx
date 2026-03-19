@@ -1,8 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import type { Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { usePathname } from 'next/navigation'
 
 const NAV = [
   { label: 'DIGEST', to: '/' },
@@ -10,18 +8,11 @@ const NAV = [
   { label: 'TRACES', to: '/traces' },
 ]
 
-export default function Layout({ session, children }: { session: Session | null, children: React.ReactNode }) {
+export default function Layout({ email, onSignOut, children }: { email: string | null; onSignOut: () => void; children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
-
-  async function signOut() {
-    await supabase.auth.signOut()
-    router.push('/auth')
-  }
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      {/* sidebar */}
       <aside style={{
         width: 180, flexShrink: 0, background: '#f8f8f8', borderRight: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -50,10 +41,10 @@ export default function Layout({ session, children }: { session: Session | null,
 
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px' }}>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {session?.user.email ?? '—'}
+            {email ?? '—'}
           </div>
           <button
-            onClick={signOut}
+            onClick={onSignOut}
             style={{
               background: 'none', border: '1px solid var(--border)', padding: '4px 10px',
               fontFamily: 'inherit', fontSize: 11, cursor: 'pointer', color: 'var(--muted)',
@@ -65,7 +56,6 @@ export default function Layout({ session, children }: { session: Session | null,
         </div>
       </aside>
 
-      {/* main */}
       <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg)' }}>
         {children}
       </main>

@@ -1,10 +1,15 @@
 'use client'
-import { useState, useMemo, useRef } from 'react'
-import { MOCK_LOGS } from '@/lib/mock'
-import type { Log } from '@/lib/mock'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { apiFetch } from '@/lib/auth'
 
-const LEVELS: Log['level'][] = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
-const SERVICES = ['all', 'api-gateway', 'auth-service', 'payment-service', 'notification-service', 'user-service']
+interface Log {
+  time: string
+  severity: string
+  service_name: string
+  body: string
+}
+
+const LEVELS = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
 const TIME_RANGES = [
   { label: '5M',  ms: 5 * 60 * 1000 },
   { label: '15M', ms: 15 * 60 * 1000 },
@@ -24,17 +29,16 @@ const LEVEL_COLORS: Record<string, { color: string; bg: string }> = {
 }
 
 function LevelBadge({ level }: { level: string }) {
-  const c = LEVEL_COLORS[level] ?? { color: 'var(--muted)', bg: 'transparent' }
+  const key = level.toUpperCase()
+  const c = LEVEL_COLORS[key] ?? { color: 'var(--muted)', bg: 'transparent' }
   return (
     <span style={{
-      display: 'inline-block',
-      fontSize: 10, letterSpacing: '0.05em',
-      color: c.color, background: c.bg,
-      padding: '1px 4px',
-      fontWeight: level === 'FATAL' ? 700 : 400,
+      display: 'inline-block', fontSize: 10, letterSpacing: '0.05em',
+      color: c.color, background: c.bg, padding: '1px 4px',
+      fontWeight: key === 'FATAL' ? 700 : 400,
       width: 42, textAlign: 'center', flexShrink: 0,
     }}>
-      {level.slice(0, 4)}
+      {key.slice(0, 4)}
     </span>
   )
 }
@@ -46,14 +50,14 @@ function formatTs(iso: string): string {
   return `${date} ${time}`
 }
 
-
 export default function LogsPage() {
-  const [timeRangeIdx, setTimeRangeIdx] = useState(4) // 24H default
-  const [activeLevels, setActiveLevels] = useState<Set<Log['level']>>(new Set(LEVELS))
+  const [timeRangeIdx, setTimeRangeIdx] = useState(2)
+  const [activeLevels, setActiveLevels] = useState<Set<string>>(new Set(LEVELS))
   const [service, setService] = useState('all')
   const [searchRaw, setSearchRaw] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
-
+  const [expanded, setExpanded] = useState<number | null>(null)
+  const [logs, setLogs] = useState<Log[]>([])
+  const [loading, setLoading] = useState(false)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -63,7 +67,7 @@ export default function LogsPage() {
     searchTimer.current = setTimeout(() => setDebouncedSearch(v), 150)
   }
 
-  function toggleLevel(level: Log['level']) {
+  function toggleLevel(level: string) {
     setActiveLevels(prev => {
       const next = new Set(prev)
       if (next.has(level)) next.delete(level)
@@ -72,92 +76,76 @@ export default function LogsPage() {
     })
   }
 
+  useEffect(() => {
+    const to = new Date()
+    const from = new Date(to.getTime() - TIME_RANGES[timeRangeIdx].ms)
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), limit: '500' })
+    setLoading(true)
+    apiFetch(`/api/v1/logs?${params}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => setLogs(data ?? []))
+      .catch(() => setLogs([]))
+      .finally(() => setLoading(false))
+  }, [timeRangeIdx])
+
+  const services = useMemo(() => ['all', ...Array.from(new Set(logs.map(l => l.service_name))).sort()], [logs])
+
   const filtered = useMemo(() => {
-    const cutoff = Date.now() - TIME_RANGES[timeRangeIdx].ms
     const q = debouncedSearch.toLowerCase()
-    return MOCK_LOGS.filter(log => {
-      if (new Date(log.timestamp).getTime() < cutoff) return false
-      if (!activeLevels.has(log.level)) return false
+    return logs.filter(log => {
+      if (!activeLevels.has(log.severity.toUpperCase())) return false
       if (service !== 'all' && log.service_name !== service) return false
       if (q && !log.body.toLowerCase().includes(q) && !log.service_name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [timeRangeIdx, activeLevels, service, debouncedSearch])
+  }, [logs, activeLevels, service, debouncedSearch])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* sticky filter bar */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: 'var(--bg)', borderBottom: '1px solid var(--border)',
-        padding: '10px 16px',
+        position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)',
+        borderBottom: '1px solid var(--border)', padding: '10px 16px',
         display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
       }}>
-        {/* time range */}
         <div style={{ display: 'flex', gap: 0 }}>
           {TIME_RANGES.map((r, i) => (
-            <button
-              key={r.label}
-              onClick={() => setTimeRangeIdx(i)}
-              style={{
-                padding: '3px 8px', fontSize: 11, letterSpacing: '0.06em',
-                border: '1px solid var(--border)',
-                marginLeft: i === 0 ? 0 : -1,
-                background: i === timeRangeIdx ? 'var(--fg)' : 'var(--surface)',
-                color: i === timeRangeIdx ? '#fff' : 'var(--muted)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              {r.label}
-            </button>
+            <button key={r.label} onClick={() => setTimeRangeIdx(i)} style={{
+              padding: '3px 8px', fontSize: 11, letterSpacing: '0.06em',
+              border: '1px solid var(--border)', marginLeft: i === 0 ? 0 : -1,
+              background: i === timeRangeIdx ? 'var(--fg)' : 'var(--surface)',
+              color: i === timeRangeIdx ? '#fff' : 'var(--muted)',
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>{r.label}</button>
           ))}
         </div>
 
-        {/* level toggles */}
         <div style={{ display: 'flex', gap: 4 }}>
           {LEVELS.map(level => {
             const c = LEVEL_COLORS[level]
             const active = activeLevels.has(level)
             return (
-              <button
-                key={level}
-                onClick={() => toggleLevel(level)}
-                style={{
-                  padding: '2px 7px', fontSize: 10, letterSpacing: '0.06em',
-                  border: `1px solid ${active ? c.color : 'var(--border)'}`,
-                  background: active ? c.bg : 'var(--surface)',
-                  color: active ? c.color : 'var(--muted)',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  fontWeight: level === 'FATAL' && active ? 700 : 400,
-                  opacity: active ? 1 : 0.5,
-                }}
-              >
-                {level}
-              </button>
+              <button key={level} onClick={() => toggleLevel(level)} style={{
+                padding: '2px 7px', fontSize: 10, letterSpacing: '0.06em',
+                border: `1px solid ${active ? c.color : 'var(--border)'}`,
+                background: active ? c.bg : 'var(--surface)',
+                color: active ? c.color : 'var(--muted)',
+                cursor: 'pointer', fontFamily: 'inherit',
+                fontWeight: level === 'FATAL' && active ? 700 : 400,
+                opacity: active ? 1 : 0.5,
+              }}>{level}</button>
             )
           })}
         </div>
 
-        {/* service dropdown */}
-        <select
-          value={service}
-          onChange={e => setService(e.target.value)}
-          style={{
-            padding: '3px 8px', fontSize: 11, border: '1px solid var(--border)',
-            background: 'var(--surface)', fontFamily: 'inherit', color: 'var(--fg)',
-            cursor: 'pointer', outline: 'none',
-          }}
-        >
-          {SERVICES.map(s => (
-            <option key={s} value={s}>{s === 'all' ? 'all services' : s}</option>
-          ))}
+        <select value={service} onChange={e => setService(e.target.value)} style={{
+          padding: '3px 8px', fontSize: 11, border: '1px solid var(--border)',
+          background: 'var(--surface)', fontFamily: 'inherit', color: 'var(--fg)',
+          cursor: 'pointer', outline: 'none',
+        }}>
+          {services.map(s => <option key={s} value={s}>{s === 'all' ? 'all services' : s}</option>)}
         </select>
 
-        {/* search */}
-        <input
-          type="text"
-          placeholder="search logs..."
-          value={searchRaw}
+        <input type="text" placeholder="search logs..." value={searchRaw}
           onChange={e => handleSearch(e.target.value)}
           style={{
             padding: '3px 10px', fontSize: 12, border: '1px solid var(--border)',
@@ -169,70 +157,40 @@ export default function LogsPage() {
         />
 
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
-          showing {filtered.length} logs
+          {loading ? 'loading...' : `showing ${filtered.length} logs`}
         </span>
       </div>
 
-      {/* log table */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 5 }}>
-              {['TIMESTAMP', 'LEVEL', 'SERVICE', 'MESSAGE', 'TRACE'].map(h => (
-                <th key={h} style={{
-                  textAlign: 'left', padding: '5px 12px',
-                  fontSize: 10, letterSpacing: '0.1em', color: 'var(--muted)', fontWeight: 400,
-                  whiteSpace: 'nowrap',
-                }}>{h}</th>
+              {['TIMESTAMP', 'LEVEL', 'SERVICE', 'MESSAGE'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '5px 12px', fontSize: 10, letterSpacing: '0.1em', color: 'var(--muted)', fontWeight: 400, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((log) => (
+            {filtered.map((log, i) => (
               <>
-                <tr
-                  key={log.id}
-                  onClick={() => setExpanded(expanded === log.id ? null : log.id)}
-                  style={{
-                    borderBottom: '1px solid var(--border)',
-                    background: expanded === log.id ? '#f5f5f5' : 'var(--surface)',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => { if (expanded !== log.id) (e.currentTarget as HTMLTableRowElement).style.background = 'var(--surface-hover)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = expanded === log.id ? '#f5f5f5' : 'var(--surface)' }}
+                <tr key={i} onClick={() => setExpanded(expanded === i ? null : i)}
+                  style={{ borderBottom: '1px solid var(--border)', background: expanded === i ? '#f5f5f5' : 'var(--surface)', cursor: 'pointer' }}
+                  onMouseEnter={e => { if (expanded !== i) (e.currentTarget as HTMLTableRowElement).style.background = 'var(--surface-hover)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = expanded === i ? '#f5f5f5' : 'var(--surface)' }}
                 >
-                  <td style={{ padding: '5px 12px', color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>
-                    {formatTs(log.timestamp)}
-                  </td>
-                  <td style={{ padding: '5px 12px', whiteSpace: 'nowrap' }}>
-                    <LevelBadge level={log.level} />
-                  </td>
-                  <td style={{ padding: '5px 12px', color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>
-                    {log.service_name}
-                  </td>
-                  <td style={{ padding: '5px 12px', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {log.body}
-                  </td>
-                  <td style={{ padding: '5px 12px', color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
-                    {log.trace_id.slice(0, 8)}…
-                  </td>
+                  <td style={{ padding: '5px 12px', color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{formatTs(log.time)}</td>
+                  <td style={{ padding: '5px 12px', whiteSpace: 'nowrap' }}><LevelBadge level={log.severity} /></td>
+                  <td style={{ padding: '5px 12px', color: 'var(--muted)', whiteSpace: 'nowrap', fontSize: 11 }}>{log.service_name}</td>
+                  <td style={{ padding: '5px 12px', maxWidth: 480, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.body}</td>
                 </tr>
-                {expanded === log.id && (
-                  <tr key={`${log.id}-exp`} style={{ borderBottom: '1px solid var(--border)', background: '#f8f8f7' }}>
-                    <td colSpan={5} style={{ padding: '10px 16px' }}>
+                {expanded === i && (
+                  <tr key={`exp-${i}`} style={{ borderBottom: '1px solid var(--border)', background: '#f8f8f7' }}>
+                    <td colSpan={4} style={{ padding: '10px 16px' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 16px', fontSize: 11 }}>
-                        <span style={{ color: 'var(--muted)' }}>body</span>
-                        <span>{log.body}</span>
-                        <span style={{ color: 'var(--muted)' }}>trace_id</span>
-                        <span style={{ fontFamily: 'monospace' }}>{log.trace_id}</span>
-                        <span style={{ color: 'var(--muted)' }}>span_id</span>
-                        <span style={{ fontFamily: 'monospace' }}>{log.span_id}</span>
-                        <span style={{ color: 'var(--muted)' }}>timestamp</span>
-                        <span>{log.timestamp}</span>
-                        <span style={{ color: 'var(--muted)' }}>service</span>
-                        <span>{log.service_name}</span>
-                        <span style={{ color: 'var(--muted)' }}>level</span>
-                        <span><LevelBadge level={log.level} /></span>
+                        <span style={{ color: 'var(--muted)' }}>body</span><span>{log.body}</span>
+                        <span style={{ color: 'var(--muted)' }}>timestamp</span><span>{log.time}</span>
+                        <span style={{ color: 'var(--muted)' }}>service</span><span>{log.service_name}</span>
+                        <span style={{ color: 'var(--muted)' }}>severity</span><span><LevelBadge level={log.severity} /></span>
                       </div>
                     </td>
                   </tr>
@@ -241,7 +199,7 @@ export default function LogsPage() {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && (
+        {!loading && filtered.length === 0 && (
           <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
             no logs match the current filters
           </div>
