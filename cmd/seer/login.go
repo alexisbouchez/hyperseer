@@ -16,53 +16,50 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/huh"
 	"github.com/urfave/cli/v3"
 
 	"github.com/alexisbouchez/hyperseer/internal/exit"
 )
 
+type authConfigResponse struct {
+	Provider string `json:"provider"`
+	URL      string `json:"url"`
+	Realm    string `json:"realm"`
+	ClientID string `json:"client_id"`
+}
+
+func fetchAuthConfig(server string) (authConfigResponse, error) {
+	resp, err := http.Get(server + "/auth/config")
+	if err != nil {
+		return authConfigResponse{}, fmt.Errorf("could not reach server: %w", err)
+	}
+	defer resp.Body.Close()
+	var cfg authConfigResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+		return authConfigResponse{}, fmt.Errorf("invalid auth config response: %w", err)
+	}
+	return cfg, nil
+}
+
 var loginCommand = &cli.Command{
 	Name:  "login",
 	Usage: "Authenticate with your Hyperseer instance",
-	Flags: []cli.Flag{
-		&cli.StringFlag{Name: "provider", Aliases: []string{"p"}, Usage: "Auth provider: keycloak or supabase"},
-		&cli.StringFlag{Name: "url", Usage: "Provider base URL (e.g. http://localhost:8080)"},
-		&cli.StringFlag{Name: "realm", Value: "hyperseer", Usage: "Keycloak realm"},
-		&cli.StringFlag{Name: "client-id", Value: "hyperseer-cli", Usage: "Keycloak client ID"},
-	},
 	Action: func(ctx context.Context, cmd *cli.Command) error {
-		provider := cmd.String("provider")
-		providerURL := cmd.String("url")
+		server := serverURL(cmd)
+		fmt.Printf("\033[2mfetching auth config from %s…\033[0m\n", server)
 
-		var formFields []huh.Field
-		if provider == "" {
-			formFields = append(formFields, huh.NewSelect[string]().
-				Title("Provider").
-				Options(
-					huh.NewOption("Keycloak", "keycloak"),
-					huh.NewOption("Supabase", "supabase"),
-				).
-				Value(&provider))
-		}
-		if providerURL == "" {
-			formFields = append(formFields, huh.NewInput().
-				Title("Provider URL").
-				Value(&providerURL))
-		}
-		if len(formFields) > 0 {
-			if err := huh.NewForm(huh.NewGroup(formFields...)).Run(); err != nil {
-				exit.WithError(err)
-			}
+		cfg, err := fetchAuthConfig(server)
+		if err != nil {
+			return err
 		}
 
-		switch provider {
+		switch cfg.Provider {
 		case "keycloak":
-			return keycloakBrowserLogin(providerURL, cmd.String("realm"), cmd.String("client-id"))
+			return keycloakBrowserLogin(cfg.URL, cfg.Realm, cfg.ClientID)
 		case "supabase":
-			return supabaseBrowserLogin(providerURL)
+			return supabaseBrowserLogin(cfg.URL)
 		default:
-			return fmt.Errorf("unknown provider %q — use keycloak or supabase", provider)
+			return fmt.Errorf("server returned unknown provider %q", cfg.Provider)
 		}
 	},
 }

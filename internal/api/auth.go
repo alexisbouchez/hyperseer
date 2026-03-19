@@ -129,3 +129,22 @@ func fetchJWKS(url string) (map[string]*rsa.PublicKey, error) {
 	}
 	return keys, nil
 }
+
+// handleAuthConfig returns the auth provider config so the CLI can
+// discover it without requiring the user to pass provider flags.
+// Intentionally unauthenticated.
+func (a *API) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Provider string `json:"provider"`
+		URL      string `json:"url"`
+		Realm    string `json:"realm,omitempty"`
+		ClientID string `json:"client_id,omitempty"`
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response{
+		Provider: a.cfg.Provider,
+		URL:      a.cfg.URL,
+		Realm:    a.cfg.Realm,
+		ClientID: a.cfg.ClientID,
+	})
+}

@@ -89,41 +89,51 @@ seer traces <trace-id>
 
 ## Authentication
 
-By default the query API is open. Set one of the following environment variables on the server to enable JWT verification.
+By default the query API is open. To enable JWT verification, configure an auth provider on the server. The CLI discovers the provider automatically — no flags needed at login time.
+
+### How it works
+
+When you run `seer login`, the CLI calls `GET /auth/config` on the server (unauthenticated) and receives the provider details. It then opens a browser to complete the flow and stores the resulting token at `~/.config/hyperseer/token.json`.
+
+```bash
+seer login                                      # uses HYPERSEER_QUERY_URL
+seer login --server https://hyperseer.example.com
+```
 
 ### Supabase
 
-Set `HYPERSEER_JWT_SECRET` to the JWT secret from your Supabase project (Dashboard → Project Settings → API → JWT Secret):
-
 ```bash
-HYPERSEER_JWT_SECRET=your-supabase-jwt-secret ./serve
+HYPERSEER_AUTH_PROVIDER=supabase \
+HYPERSEER_AUTH_URL=https://<project-ref>.supabase.co/auth/v1 \
+HYPERSEER_JWT_SECRET=<jwt-secret> \
+./serve
 ```
 
-Then log in from the CLI:
-
-```bash
-# Supabase Cloud
-seer login --provider supabase --url https://<project-ref>.supabase.co/auth/v1
-
-# Self-hosted
-seer login --provider supabase --url https://auth.your-domain.com
-```
+`HYPERSEER_JWT_SECRET` is the JWT secret from your Supabase project (Dashboard → Project Settings → API → JWT Secret).
 
 ### Keycloak
 
-Set `HYPERSEER_JWKS_URL` to the JWKS endpoint of your Keycloak realm:
-
 ```bash
-HYPERSEER_JWKS_URL=https://auth.your-domain.com/realms/your-realm/protocol/openid-connect/certs ./serve
+HYPERSEER_AUTH_PROVIDER=keycloak \
+HYPERSEER_AUTH_URL=https://auth.your-domain.com \
+HYPERSEER_AUTH_REALM=your-realm \
+HYPERSEER_AUTH_CLIENT_ID=hyperseer-cli \
+HYPERSEER_JWKS_URL=https://auth.your-domain.com/realms/your-realm/protocol/openid-connect/certs \
+./serve
 ```
 
-Then log in from the CLI:
+The Keycloak client must have the Authorization Code + PKCE flow enabled and `http://localhost:*` in its redirect URIs.
 
-```bash
-seer login --provider keycloak --url https://auth.your-domain.com --realm your-realm
-```
+### Environment variables
 
-The client ID defaults to `hyperseer-cli`. Your Keycloak client must have the Authorization Code flow enabled and `http://localhost:*` in its redirect URIs.
+| Variable | Description |
+|---|---|
+| `HYPERSEER_AUTH_PROVIDER` | `supabase` or `keycloak` |
+| `HYPERSEER_AUTH_URL` | Provider base URL (advertised to the CLI) |
+| `HYPERSEER_AUTH_REALM` | Keycloak realm (default: `hyperseer`) |
+| `HYPERSEER_AUTH_CLIENT_ID` | Keycloak client ID (default: `hyperseer-cli`) |
+| `HYPERSEER_JWT_SECRET` | Supabase JWT secret (HS256 validation) |
+| `HYPERSEER_JWKS_URL` | Keycloak JWKS endpoint URL (RS256 validation) |
 
 ## License
 

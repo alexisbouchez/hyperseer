@@ -18,9 +18,13 @@ func New(conn driver.Conn, cfg config.AuthConfig) *API {
 }
 
 func (a *API) Handler() http.Handler {
+	protected := http.NewServeMux()
+	protected.HandleFunc("GET /v1/logs", a.handleLogs)
+	protected.HandleFunc("GET /v1/traces", a.handleTraces)
+	protected.HandleFunc("GET /v1/traces/{id}", a.handleTraceSpans)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/logs", a.handleLogs)
-	mux.HandleFunc("GET /v1/traces", a.handleTraces)
-	mux.HandleFunc("GET /v1/traces/{id}", a.handleTraceSpans)
-	return authMiddleware(a.cfg)(mux)
+	mux.HandleFunc("GET /auth/config", a.handleAuthConfig)
+	mux.Handle("/", authMiddleware(a.cfg)(protected))
+	return mux
 }

@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'IoskeleyMono';
+  src: url('/fonts/IoskeleyMono-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'IoskeleyMono';
+  src: url('/fonts/IoskeleyMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'IoskeleyMono';
+  src: url('/fonts/IoskeleyMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'IoskeleyMono';
+  src: url('/fonts/IoskeleyMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
+:root {
+  --bg: #ffffff;
+  --fg: #000000;
+  --border: rgba(0,0,0,0.1);
+  --muted: rgba(0,0,0,0.38);
+  --surface: #ffffff;
+  --surface-hover: #f7f7f7;
+  --accent: #000000;
+  --red: #b91c1c;
+  --amber: #b45309;
+  --blue: #1d4ed8;
+  --green: #15803d;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  font-family: 'IoskeleyMono', 'Berkeley Mono', 'Iosevka', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }

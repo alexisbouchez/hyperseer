@@ -15,8 +15,15 @@ type Config struct {
 }
 
 type AuthConfig struct {
+	// Runtime JWT validation
 	JWTSecret string // HS256 — Supabase
 	JWKSUrl   string // RS256 — Keycloak
+
+	// Advertised to CLI via GET /auth/config
+	Provider string // "keycloak" or "supabase"
+	URL      string // Provider base URL
+	Realm    string // Keycloak realm
+	ClientID string // Keycloak client ID
 }
 
 type ClickHouseConfig struct {
@@ -56,6 +63,10 @@ func New() Config {
 		Auth: AuthConfig{
 			JWTSecret: env.GetVar("HYPERSEER_JWT_SECRET", ""),
 			JWKSUrl:   env.GetVar("HYPERSEER_JWKS_URL", ""),
+			Provider:  env.GetVar("HYPERSEER_AUTH_PROVIDER", ""),
+			URL:       env.GetVar("HYPERSEER_AUTH_URL", ""),
+			Realm:     env.GetVar("HYPERSEER_AUTH_REALM", "hyperseer"),
+			ClientID:  env.GetVar("HYPERSEER_AUTH_CLIENT_ID", "hyperseer-cli"),
 		},
 		QueryURL: env.GetVar("HYPERSEER_QUERY_URL", "http://localhost:7777"),
 	}
