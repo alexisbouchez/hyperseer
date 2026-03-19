@@ -20,6 +20,16 @@ type installConfig struct {
 	CHPassword string
 	Retention  string
 	CaddyMode  string // "new", "existing", "skip"
+
+	AuthProvider string // "none", "supabase", "keycloak"
+	// Supabase
+	SupabaseURL       string
+	SupabaseJWTSecret string
+	// Keycloak
+	KeycloakURL      string
+	KeycloakRealm    string
+	KeycloakClientID string
+	KeycloakJWKSURL  string
 }
 
 func randomPassword() string {
@@ -73,9 +83,12 @@ func main() {
 	fmt.Println()
 
 	cfg := installConfig{
-		CHPassword: randomPassword(),
-		Retention:  "30",
-		CaddyMode:  "new",
+		CHPassword:    randomPassword(),
+		Retention:     "30",
+		CaddyMode:     "new",
+		AuthProvider:  "none",
+		KeycloakRealm: "hyperseer",
+		KeycloakClientID: "hyperseer-cli",
 	}
 	if set["domain"] {
 		cfg.Domain = *flagDomain
@@ -155,6 +168,59 @@ func main() {
 		fmt.Println()
 	}
 
+	// Group 3: auth provider
+	if err := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Authentication").
+				Description("Protect the query API with JWT verification.").
+				Options(
+					huh.NewOption("None (open API)", "none"),
+					huh.NewOption("Supabase", "supabase"),
+					huh.NewOption("Keycloak", "keycloak"),
+				).
+				Value(&cfg.AuthProvider),
+		),
+	).Run(); err != nil {
+		exit.WithError(err)
+	}
+
+	switch cfg.AuthProvider {
+	case "supabase":
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewInput().
+				Title("Supabase URL").
+				Description("e.g. https://<project-ref>.supabase.co/auth/v1").
+				Value(&cfg.SupabaseURL),
+			huh.NewInput().
+				Title("Supabase JWT secret").
+				Description("Dashboard -> Project Settings -> API -> JWT Secret").
+				EchoMode(huh.EchoModePassword).
+				Value(&cfg.SupabaseJWTSecret),
+		)).Run(); err != nil {
+			exit.WithError(err)
+		}
+	case "keycloak":
+		if err := huh.NewForm(huh.NewGroup(
+			huh.NewInput().
+				Title("Keycloak base URL").
+				Description("e.g. https://auth.example.com").
+				Value(&cfg.KeycloakURL),
+			huh.NewInput().
+				Title("Realm").
+				Value(&cfg.KeycloakRealm),
+			huh.NewInput().
+				Title("Client ID").
+				Value(&cfg.KeycloakClientID),
+		)).Run(); err != nil {
+			exit.WithError(err)
+		}
+		cfg.KeycloakJWKSURL = fmt.Sprintf(
+			"%s/realms/%s/protocol/openid-connect/certs",
+			cfg.KeycloakURL, cfg.KeycloakRealm,
+		)
+	}
+
 	// Confirmation
 	confirm := *flagYes
 	if !confirm {
@@ -211,9 +277,24 @@ func main() {
 }
 
 func writeEnv(cfg installConfig) error {
-	content := fmt.Sprintf("CH_PASSWORD=%s\nDOMAIN=%s\nRETENTION_DAYS=%s\n",
-		cfg.CHPassword, cfg.Domain, cfg.Retention)
-	return os.WriteFile(".env", []byte(content), 0600)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("CH_PASSWORD=%s\nDOMAIN=%s\nRETENTION_DAYS=%s\n",
+		cfg.CHPassword, cfg.Domain, cfg.Retention))
+
+	switch cfg.AuthProvider {
+	case "supabase":
+		sb.WriteString(fmt.Sprintf(
+			"HYPERSEER_AUTH_PROVIDER=supabase\nHYPERSEER_AUTH_URL=%s\nHYPERSEER_JWT_SECRET=%s\n",
+			cfg.SupabaseURL, cfg.SupabaseJWTSecret,
+		))
+	case "keycloak":
+		sb.WriteString(fmt.Sprintf(
+			"HYPERSEER_AUTH_PROVIDER=keycloak\nHYPERSEER_AUTH_URL=%s\nHYPERSEER_AUTH_REALM=%s\nHYPERSEER_AUTH_CLIENT_ID=%s\nHYPERSEER_JWKS_URL=%s\n",
+			cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, cfg.KeycloakJWKSURL,
+		))
+	}
+
+	return os.WriteFile(".env", []byte(sb.String()), 0600)
 }
 
 func writeCompose(cfg installConfig) error {
@@ -235,7 +316,22 @@ func writeCompose(cfg installConfig) error {
     environment:
       HYPERSEER_CH_HOST: clickhouse
       HYPERSEER_CH_PASSWORD: ${CH_PASSWORD}
-    depends_on:
+`)
+
+	switch cfg.AuthProvider {
+	case "supabase":
+		sb.WriteString(fmt.Sprintf(
+			"      HYPERSEER_AUTH_PROVIDER: supabase\n      HYPERSEER_AUTH_URL: %s\n      HYPERSEER_JWT_SECRET: ${HYPERSEER_JWT_SECRET}\n",
+			cfg.SupabaseURL,
+		))
+	case "keycloak":
+		sb.WriteString(fmt.Sprintf(
+			"      HYPERSEER_AUTH_PROVIDER: keycloak\n      HYPERSEER_AUTH_URL: %s\n      HYPERSEER_AUTH_REALM: %s\n      HYPERSEER_AUTH_CLIENT_ID: %s\n      HYPERSEER_JWKS_URL: %s\n",
+			cfg.KeycloakURL, cfg.KeycloakRealm, cfg.KeycloakClientID, cfg.KeycloakJWKSURL,
+		))
+	}
+
+	sb.WriteString(`    depends_on:
       - clickhouse
     restart: unless-stopped
 `)
